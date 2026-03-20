@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cribl Pusher — Application Onboarding</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --border:    #2e3148;
+      --accent:    #ff4b4b;
+      --accent2:   #0ea5e9;
+      --text:      #e2e8f0;
+      --muted:     #94a3b8;
+      --success:   #22c55e;
+      --warning:   #f59e0b;
+      --radius:    8px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      letter-spacing: .3px;
+    }
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      font-size: 16px;
+    }
+    .badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 600;
+      letter-spacing: .4px;
+      text-transform: uppercase;
+    }
+    .badge-internal { background: #1e3a5f; color: var(--accent2); }
+
+    .launch-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 9px 22px;
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: opacity .15s;
+    }
+    .launch-btn:hover { opacity: .85; }
+
+    /* ── Hero ── */
+    .hero {
+      text-align: center;
+      padding: 72px 2rem 56px;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .hero h1 {
+      font-size: 2.4rem;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 16px;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero p {
+      color: var(--muted);
+      font-size: 1.05rem;
+      margin-bottom: 32px;
+    }
+    .hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn-outline {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 9px 22px;
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: border-color .15s;
+    }
+    .btn-outline:hover { border-color: var(--muted); }
+
+    /* ── Layout ── */
+    main {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 2rem 80px;
+    }
+
+    /* ── Section titles ── */
+    .section-title {
+      font-size: .75rem;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 20px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Cards ── */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 48px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+    .card-icon {
+      width: 40px; height: 40px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-size: 18px;
+      margin-bottom: 14px;
+    }
+    .icon-red   { background: rgba(255,75,75,.15); }
+    .icon-blue  { background: rgba(14,165,233,.15); }
+    .icon-green { background: rgba(34,197,94,.15); }
+    .icon-amber { background: rgba(245,158,11,.15); }
+    .card h3 { font-size: .95rem; font-weight: 700; margin-bottom: 6px; }
+    .card p  { font-size: .87rem; color: var(--muted); }
+
+    /* ── Tabs docs ── */
+    .tab-docs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 48px;
+    }
+    @media (max-width: 700px) { .tab-docs { grid-template-columns: 1fr; } }
+
+    .tab-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .tab-header {
+      padding: 14px 20px;
+      font-weight: 700;
+      font-size: .92rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .tab-header.red  { border-left: 3px solid var(--accent); }
+    .tab-header.blue { border-left: 3px solid var(--accent2); }
+    .tab-body { padding: 20px; }
+
+    .field-list { list-style: none; }
+    .field-list li {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: .87rem;
+    }
+    .field-list li:last-child { border-bottom: none; }
+    .field-name { font-weight: 600; white-space: nowrap; }
+    .field-desc { color: var(--muted); text-align: right; }
+    .tag {
+      font-size: 11px;
+      padding: 1px 7px;
+      border-radius: 4px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .tag-req  { background: rgba(255,75,75,.2);  color: #f87171; }
+    .tag-opt  { background: rgba(100,116,139,.2); color: #94a3b8; }
+    .tag-flag { background: rgba(14,165,233,.2);  color: #38bdf8; }
+
+    /* ── Steps ── */
+    .steps { list-style: none; margin-bottom: 48px; }
+    .steps li {
+      display: flex;
+      gap: 16px;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .steps li:last-child { border-bottom: none; }
+    .step-num {
+      width: 28px; height: 28px;
+      min-width: 28px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+    .steps h4 { font-size: .95rem; font-weight: 700; margin-bottom: 4px; }
+    .steps p  { font-size: .87rem; color: var(--muted); }
+
+    /* ── Code block ── */
+    pre {
+      background: #0d0f18;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      overflow-x: auto;
+      font-size: .83rem;
+      margin: 16px 0;
+      line-height: 1.7;
+    }
+    code { font-family: "Cascadia Code", "Fira Code", Consolas, monospace; }
+    .cm  { color: #64748b; }   /* comment */
+    .kw  { color: #38bdf8; }   /* keyword */
+    .st  { color: #86efac; }   /* string */
+
+    /* ── Alert ── */
+    .alert {
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      font-size: .88rem;
+      margin-bottom: 20px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .alert-warning { background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.3); color: #fcd34d; }
+    .alert-info    { background: rgba(14,165,233,.1);  border: 1px solid rgba(14,165,233,.3);  color: #7dd3fc; }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 32px;
+      color: var(--muted);
+      font-size: .82rem;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════ HEADER ══════════ -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">📡</div>
+    Cribl Pusher
+    <span class="badge badge-internal">Internal</span>
+  </div>
+  <a class="launch-btn" href="/cribl/app" target="_blank">Launch App →</a>
+</header>
+
+<!-- ══════════ HERO ══════════ -->
+<div class="hero">
+  <h1>Application <span>Onboarding</span><br>for Cribl &amp; ELK</h1>
+  <p>Push routes and destinations across Cribl workspaces, or remove ELK roles and Cribl routes — single app or bulk file.</p>
+  <div class="hero-actions">
+    <a class="launch-btn" href="/cribl/app" target="_blank">Launch App →</a>
+    <a class="btn-outline" href="#usage">Usage Guide</a>
+    <a class="btn-outline" href="#fields">Field Reference</a>
+  </div>
+</div>
+
+<!-- ══════════ MAIN ══════════ -->
+<main>
+
+  <!-- What it does -->
+  <p class="section-title">Overview</p>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-icon icon-red">🚀</div>
+      <h3>Push Routes</h3>
+      <p>Inject new Cribl routes above the default catch-all, targeting a specific pipeline and destination, across one or more worker groups.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon icon-blue">🗑️</div>
+      <h3>Remove Routes &amp; ELK Roles</h3>
+      <p>Remove app routes from Cribl and delete associated ELK roles in nonprod and prod in a single coordinated operation.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon icon-green">📋</div>
+      <h3>Single or Bulk</h3>
+      <p>Process one app by ID + name, or upload a <code>.txt</code> file with multiple apps (<code>appid, appname</code> per line).</p>
+    </div>
+    <div class="card">
+      <div class="card-icon icon-amber">🔒</div>
+      <h3>Safe by Default</h3>
+      <p>Dry-run is checked by default. Protected workspaces require an explicit "Allow production writes" override before any changes are made.</p>
+    </div>
+  </div>
+
+  <!-- Quick-start -->
+  <p class="section-title" id="usage">Quick Start</p>
+  <ol class="steps">
+    <li>
+      <div class="step-num">1</div>
+      <div>
+        <h4>Open the app</h4>
+        <p>Click <strong>Launch App</strong> above. The Streamlit UI will load in a new tab.</p>
+      </div>
+    </li>
+    <li>
+      <div class="step-num">2</div>
+      <div>
+        <h4>Select a workspace and worker group(s)</h4>
+        <p>Pick the target Cribl workspace from the dropdown, then choose one or more worker groups. If the workspace is marked as protected, check <em>Allow production writes</em>.</p>
+      </div>
+    </li>
+    <li>
+      <div class="step-num">3</div>
+      <div>
+        <h4>Enter app details</h4>
+        <p>Single mode: provide App ID and App Name.<br>
+           Bulk mode: upload a <code>.txt</code> file — one <code>appid, appname</code> pair per line. Lines starting with <code>#</code> are ignored.</p>
+        <pre><code><span class="cm"># example apps.txt</span>
+<span class="st">APP001, Payments Service</span>
+<span class="st">APP002, Auth Gateway</span>
+<span class="cm"># APP003, Deprecated App   &lt;-- skipped</span></code></pre>
+      </div>
+    </li>
+    <li>
+      <div class="step-num">4</div>
+      <div>
+        <h4>Verify with Dry Run first</h4>
+        <p>Leave <em>Dry Run</em> checked (default). Review the diff output on the right. No changes are written until you uncheck it and re-run.</p>
+      </div>
+    </li>
+    <li>
+      <div class="step-num">5</div>
+      <div>
+        <h4>Run</h4>
+        <p>Click <strong>Run cribl-pusher</strong>. Output and exit code appear in the right panel. A green banner means success (exit 0).</p>
+      </div>
+    </li>
+  </ol>
+
+  <!-- Field reference -->
+  <p class="section-title" id="fields">Field Reference</p>
+
+  <div class="tab-docs">
+    <!-- Tab 1 -->
+    <div class="tab-card">
+      <div class="tab-header red">📡 Tab 1 — Cribl Pusher</div>
+      <div class="tab-body">
+        <ul class="field-list">
+          <li>
+            <span class="field-name">Cribl URL</span>
+            <span class="field-desc"><span class="tag tag-opt">optional</span> Overrides config.json base URL</span>
+          </li>
+          <li>
+            <span class="field-name">Workspace</span>
+            <span class="field-desc"><span class="tag tag-req">required</span> Target Cribl workspace</span>
+          </li>
+          <li>
+            <span class="field-name">Worker Group(s)</span>
+            <span class="field-desc"><span class="tag tag-req">required</span> One or more worker groups; runs sequentially</span>
+          </li>
+          <li>
+            <span class="field-name">Region</span>
+            <span class="field-desc"><span class="tag tag-req">required</span> <code>azn</code> or <code>azs</code></span>
+          </li>
+          <li>
+            <span class="field-name">App ID / App Name</span>
+            <span class="field-desc"><span class="tag tag-req">required</span> Single mode only</span>
+          </li>
+          <li>
+            <span class="field-name">App list file</span>
+            <span class="field-desc"><span class="tag tag-req">required</span> Bulk mode — <code>.txt</code>, one entry/line</span>
+          </li>
+          <li>
+            <span class="field-name">Dry Run</span>
+            <span class="field-desc"><span class="tag tag-flag">flag</span> Simulate only — no writes (default: on)</span>
+          </li>
+          <li>
+            <span class="field-name">Skip SSL</span>
+            <span class="field-desc"><span class="tag tag-flag">flag</span> Disable TLS verification</span>
+          </li>
+          <li>
+            <span class="field-name">Bearer Token</span>
+            <span class="field-desc"><span class="tag tag-opt">optional</span> Overrides config.json credentials</span>
+          </li>
+          <li>
+            <span class="field-name">Route Group ID</span>
+            <span class="field-desc"><span class="tag tag-opt">optional</span> Target a specific route group</span>
+          </li>
+          <li>
+            <span class="field-name">Min Existing Routes</span>
+            <span class="field-desc"><span class="tag tag-opt">optional</span> Safety guard — abort if below threshold</span>
+          </li>
+          <li>
+            <span class="field-name">Snapshot Dir</span>
+            <span class="field-desc"><span class="tag tag-opt">optional</span> Save before/after JSON snapshots</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Tab 2 -->
+    <div class="tab-card">
+      <div class="tab-header blue">🗑️ Tab 2 — ELK Roles + Cribl</div>
+      <div class="tab-body">
+        <ul class="field-list">
+          <li>
+            <span class="field-name">App ID / App Name</span>
+            <span class="field-desc"><span class="tag tag-req">required</span> Single mode only</span>
+          </li>
+          <li>
+            <span class="field-name">ELK Nonprod URL</span>
+            <span class="field-desc"><span class="tag tag-req">required</span> Unless Skip ELK is checked</span>
+          </li>
+          <li>
+            <span class="field-name">ELK Prod URL</span>
+            <span class="field-desc"><span class="tag tag-req">required</span> Unless Skip ELK is checked</span>
+          </li>
+          <li>
+            <span class="field-name">ELK Token / User+Pass</span>
+            <span class="field-desc"><span class="tag tag-req">required</span> Token takes priority over user/pass</span>
+          </li>
+          <li>
+            <span class="field-name">Cribl Workspace</span>
+            <span class="field-desc"><span class="tag tag-req">required</span> Unless Skip Cribl is checked</span>
+          </li>
+          <li>
+            <span class="field-name">Order</span>
+            <span class="field-desc"><span class="tag tag-flag">flag</span> ELK first or Cribl first</span>
+          </li>
+          <li>
+            <span class="field-name">Skip ELK</span>
+            <span class="field-desc"><span class="tag tag-flag">flag</span> Only remove Cribl routes</span>
+          </li>
+          <li>
+            <span class="field-name">Skip Cribl</span>
+            <span class="field-desc"><span class="tag tag-flag">flag</span> Only remove ELK roles</span>
+          </li>
+          <li>
+            <span class="field-name">Dry Run</span>
+            <span class="field-desc"><span class="tag tag-flag">flag</span> Simulate only (default: on)</span>
+          </li>
+          <li>
+            <span class="field-name">Allow Prod Writes</span>
+            <span class="field-desc"><span class="tag tag-flag">flag</span> Required for protected workspaces</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Credentials priority -->
+  <p class="section-title">Credential Resolution Order</p>
+  <div class="alert alert-info">
+    ℹ️ Credentials are resolved in this order: <strong>UI field → environment variable → config.json</strong>. Leave UI fields blank to fall back to config.json.
+  </div>
+  <pre><code><span class="cm"># Environment variable fallbacks</span>
+<span class="kw">export</span> <span class="st">CRIBL_TOKEN</span>=your-token
+<span class="kw">export</span> <span class="st">CRIBL_USERNAME</span>=admin
+<span class="kw">export</span> <span class="st">CRIBL_PASSWORD</span>=secret</code></pre>
+
+  <!-- Safety notes -->
+  <p class="section-title">Safety Notes</p>
+  <div class="alert alert-warning">
+    ⚠️ <strong>Dry Run is on by default.</strong> Always review the diff output before unchecking it. Routes are inserted above the first <code>final: true</code> route — verify the position is correct in dry-run output.
+  </div>
+  <div class="alert alert-warning">
+    ⚠️ <strong>Protected workspaces</strong> require the <em>Allow production writes</em> checkbox. The run button will be blocked otherwise.
+  </div>
+
+</main>
+
+<footer>
+  Cribl Pusher — Internal Tool &nbsp;·&nbsp; Route management for Cribl &amp; ELK
+</footer>
+
+</body>
+</html>
