@@ -23,6 +23,7 @@ from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
 from flask import Flask, g, jsonify, render_template, request
+from werkzeug.exceptions import HTTPException
 
 SCRIPT_DIR  = Path(__file__).parent.resolve()
 CONFIG_PATH = SCRIPT_DIR / "config.json"
@@ -105,6 +106,10 @@ def _after(response):
 
 @app.errorhandler(Exception)
 def _handle_exception(exc):
+    # Let Flask handle standard HTTP errors (404, 405, etc.) normally
+    if isinstance(exc, HTTPException):
+        return exc
+
     if isinstance(exc, SystemExit):
         # sys.exit() called inside a route (e.g. cribl die()) — treat as 500
         msg = f"Internal process exited unexpectedly (code={exc.code})"
