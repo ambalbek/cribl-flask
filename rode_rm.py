@@ -285,10 +285,12 @@ def push_cribl(apps, workspace_name, args, log):
     diff_lines   = config.get("diff_lines", 3)
     snapshot_dir = config.get("snapshot_dir", "cribl_snapshots")
 
-    root_url, api_base = build_workspace_urls(config, workspace_cfg)
+    worker_group = getattr(args, "worker_group", "").strip()
+    if not worker_group:
+        die("[ERR] --worker-group is required for Cribl push")
+    root_url, api_base = build_workspace_urls(config, workspace_cfg, worker_group)
     if getattr(args, "cribl_url", "").strip():
         root_url = args.cribl_url.rstrip("/")
-        worker_group = workspace_cfg["worker_group"]
         api_base = f"{root_url}/api/v1/m/{worker_group}"
 
     route_tmpl_path = workspace_cfg.get("route_template") or config.get("route_template", "route_template.json")
@@ -454,10 +456,12 @@ def main():
     parser.add_argument("--elk-token-prod",    default="", help="Elasticsearch prod API key (overrides basic auth)")
     parser.add_argument("--skip-elk",          action="store_true", help="Skip ELK API calls (templates still saved)")
     # Cribl args
-    parser.add_argument("--config",     default="config.json", help="Path to Cribl config file")
-    parser.add_argument("--cribl-url",  default="",            help="Cribl base URL override (overrides config base_url)")
-    parser.add_argument("--workspace",  default="",            help="Cribl workspace name")
-    parser.add_argument("--allow-prod", action="store_true",   help="Required for require_allow workspaces")
+    parser.add_argument("--config",       default="config.json", help="Path to Cribl config file")
+    parser.add_argument("--cribl-url",    default="",            help="Cribl base URL override (overrides config base_url)")
+    parser.add_argument("--workspace",    default="",            help="Cribl workspace name")
+    parser.add_argument("--worker-group", dest="worker_group", default="", help="Cribl worker group to target")
+    parser.add_argument("--region",       choices=["azn", "azs"], default="", help="Region (azn or azs)")
+    parser.add_argument("--allow-prod",   action="store_true",   help="Required for require_allow workspaces")
     parser.add_argument("--token",      default="",            help="Cribl bearer token override")
     parser.add_argument("--username",   default="",            help="Cribl username override")
     parser.add_argument("--password",   default="",            help="Cribl password override")
@@ -510,12 +514,18 @@ def main():
             die("Provide --elk-user-prod or --elk-token-prod unless --skip-elk is set.")
         if not args.elk_token_prod and not args.elk_password_prod:
             args.elk_password_prod = getpass.getpass("Elasticsearch prod password: ")
-    if not args.skip_cribl and not args.workspace:
-        config_data = load_config(args.config)
-        ws_names    = get_workspace_names(config_data)
-        if not ws_names:
-            die("No workspaces defined in config.json")
-        args.workspace = prompt_choice("Select Cribl workspace", ws_names)
+    if not args.skip_cribl:
+        if not args.workspace:
+            config_data = load_config(args.config)
+            ws_names    = get_workspace_names(config_data)
+            if not ws_names:
+                die("No workspaces defined in config.json")
+            args.workspace = prompt_choice("Select Cribl workspace", ws_names)
+        if not args.worker_group:
+            config_data  = load_config(args.config)
+            ws_cfg       = get_workspace(config_data, args.workspace)
+            wg_list      = get_worker_groups(ws_cfg)
+            args.worker_group = prompt_choice("Select worker group", wg_list)
 
     # always save templates to disk (original behaviour)
     save_templates(apps, configurations)

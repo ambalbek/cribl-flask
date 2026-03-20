@@ -3,7 +3,7 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "127.0.0.1:5000:5000"   # bind to loopback only — WireGuard/SSH tunnel reaches this
+      - "0.0.0.0:5000:5000"     # bind on all interfaces — lock down with firewall to bastion IP only
     volumes:
       - ./config.json:/app/config.json:ro          # secrets never in image
       - ./cribl_snapshots:/app/cribl_snapshots     # persist snapshots across restarts

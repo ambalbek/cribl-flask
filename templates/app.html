@@ -471,6 +471,21 @@
           </select>
         </div>
 
+        <div class="form-group">
+          <label for="t2_worker_group">Worker Group</label>
+          <select id="t2_worker_group">
+            <option value="">— select workspace first —</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Region</label>
+          <div class="radio-group">
+            <label><input type="radio" name="t2_region" value="azn" checked> azn</label>
+            <label><input type="radio" name="t2_region" value="azs"> azs</label>
+          </div>
+        </div>
+
         <div id="t2_protected_warning" class="alert alert-warning hidden">
           ⚠️ <strong>Protected workspace.</strong> You must check the box below before running.
           <div style="margin-top:8px">
@@ -585,10 +600,11 @@ function onWorkspaceChange(prefix) {
   const wsName = sel.value;
   const wsData = WORKSPACES[wsName] || {};
 
-  // Worker groups (tab1 only)
+  const groups = wsData.worker_groups || [];
+
+  // Tab 1: checkboxes (multi-select)
   const wgContainer = document.getElementById(prefix + '_wg_list');
   if (wgContainer) {
-    const groups = wsData.worker_groups || [];
     if (groups.length === 0) {
       wgContainer.innerHTML = '<span class="wg-empty">No worker groups defined for this workspace</span>';
     } else {
@@ -596,6 +612,14 @@ function onWorkspaceChange(prefix) {
         `<label><input type="checkbox" name="${prefix}_wg" value="${g}"> ${g}</label>`
       ).join('');
     }
+  }
+
+  // Tab 2: single select dropdown
+  const wgSelect = document.getElementById(prefix + '_worker_group');
+  if (wgSelect) {
+    wgSelect.innerHTML = groups.length === 0
+      ? '<option value="">No worker groups defined</option>'
+      : groups.map(g => `<option value="${g}">${g}</option>`).join('');
   }
 
   // Protected workspace warning
@@ -760,9 +784,11 @@ async function submitRemove() {
   fd.append('cribl_token',          document.getElementById('t2_cribl_token').value);
   fd.append('cribl_username',       document.getElementById('t2_cribl_username').value);
   fd.append('cribl_password',       document.getElementById('t2_cribl_password').value);
-  fd.append('workspace',  document.getElementById('t2_workspace').value);
-  fd.append('log_level',  document.getElementById('t2_log_level').value);
-  fd.append('order',      document.querySelector('input[name="t2_order"]:checked').value);
+  fd.append('workspace',    document.getElementById('t2_workspace').value);
+  fd.append('worker_group', document.getElementById('t2_worker_group').value);
+  fd.append('region',       document.querySelector('input[name="t2_region"]:checked').value);
+  fd.append('log_level',    document.getElementById('t2_log_level').value);
+  fd.append('order',        document.querySelector('input[name="t2_order"]:checked').value);
 
   if (document.getElementById('t2_allow_prod').checked)  fd.append('allow_prod',  '1');
   if (document.getElementById('t2_skip_elk').checked)    fd.append('skip_elk',    '1');

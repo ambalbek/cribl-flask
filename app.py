@@ -6,23 +6,115 @@ Run with:
     flask run --host=0.0.0.0 --port=5000
   or:
     python app.py
+
+Environment variables:
+    LOG_LEVEL   DEBUG / INFO / WARNING / ERROR  (default: INFO)
+    LOG_FILE    Path to log file  (default: none, console only)
 """
 import json
+import logging
 import os
 import subprocess
 import sys
 import tempfile
+import time
+import traceback
+from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, g, jsonify, render_template, request
 
 SCRIPT_DIR  = Path(__file__).parent.resolve()
 CONFIG_PATH = SCRIPT_DIR / "config.json"
 PUSHER      = SCRIPT_DIR / "cribl-pusher.py"
 RODE_RM     = SCRIPT_DIR / "rode_rm.py"
 
+
+# ── Logging setup ──────────────────────────────────────────────────────────────
+
+def setup_app_logging(app: Flask) -> logging.Logger:
+    """
+    Configure a dedicated 'flask.app' logger for the web layer.
+
+    - Console handler always attached (stdout).
+    - File handler attached when LOG_FILE env var is set
+      (daily rotation, 30-day retention).
+    - Flask's default werkzeug request logger is left intact but its
+      level is raised to WARNING so it doesn't double-print every request.
+    """
+    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+    if log_level not in ("DEBUG", "INFO", "WARNING", "ERROR"):
+        log_level = "INFO"
+
+    fmt       = "%(asctime)s  %(levelname)-8s  [flask]  %(message)s"
+    datefmt   = "%Y-%m-%d %H:%M:%S"
+    formatter = logging.Formatter(fmt, datefmt)
+
+    logger = logging.getLogger("flask.app")
+    logger.setLevel(getattr(logging, log_level))
+    logger.handlers.clear()
+    logger.propagate = False
+
+    # Console
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+
+    # File (optional)
+    log_file = os.environ.get("LOG_FILE", "").strip()
+    if log_file:
+        fh = TimedRotatingFileHandler(
+            log_file, when="midnight", backupCount=30, encoding="utf-8"
+        )
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
+        logger.info("File logging enabled: %s", log_file)
+
+    # Silence werkzeug's per-request lines (we log our own)
+    logging.getLogger("werkzeug").setLevel(logging.WARNING)
+
+    return logger
+
+
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10 MB
+
+log = setup_app_logging(app)
+
+
+# ── Request lifecycle hooks ────────────────────────────────────────────────────
+
+@app.before_request
+def _before():
+    g.start_time = time.monotonic()
+    log.info("→ %s %s  [%s]", request.method, request.path,
+             request.remote_addr or "-")
+
+
+@app.after_request
+def _after(response):
+    elapsed_ms = (time.monotonic() - g.start_time) * 1000
+    level = logging.WARNING if response.status_code >= 400 else logging.INFO
+    log.log(level, "← %s %s  %d  %.0fms",
+            request.method, request.path,
+            response.status_code, elapsed_ms)
+    return response
+
+
+# ── Unhandled exception handler — always return JSON, never bare HTML ──────────
+
+@app.errorhandler(Exception)
+def _handle_exception(exc):
+    if isinstance(exc, SystemExit):
+        # sys.exit() called inside a route (e.g. cribl die()) — treat as 500
+        msg = f"Internal process exited unexpectedly (code={exc.code})"
+    else:
+        msg = str(exc)
+
+    log.error("Unhandled exception on %s %s:\n%s",
+              request.method, request.path,
+              traceback.format_exc())
+    return jsonify({"errors": [f"Server error: {msg}"]}), 500
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -32,7 +124,8 @@ def load_config() -> dict:
         return json.load(f)
 
 
-def run_subprocess(cmd: list) -> tuple:
+def run_subprocess(cmd: list, masked: str = "") -> tuple:
+    log.info("  subprocess: %s", masked or " ".join(cmd))
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUNBUFFERED"] = "1"
@@ -45,6 +138,10 @@ def run_subprocess(cmd: list) -> tuple:
         env=env,
         cwd=str(SCRIPT_DIR),
     )
+    log.info("  subprocess exit code: %d", result.returncode)
+    if result.returncode != 0:
+        log.warning("  subprocess failed — first 500 chars: %s",
+                    (result.stdout or "")[:500])
     return result.stdout or "", result.returncode
 
 
@@ -56,7 +153,7 @@ def mask_cmd(cmd: list, sensitive: set) -> str:
     return " ".join(masked)
 
 
-# ── Command builders (mirrors ui.py logic exactly) ─────────────────────────────
+# ── Command builders ───────────────────────────────────────────────────────────
 
 def build_pusher_cmd(form: dict, appfile_path: str) -> tuple:
     cmd = [
@@ -109,7 +206,8 @@ def build_pusher_cmd(form: dict, appfile_path: str) -> tuple:
     if form.get("log_file", "").strip():
         cmd += ["--log-file", form["log_file"].strip()]
 
-    return cmd, mask_cmd(cmd, {"--password", "--token"})
+    sensitive = {"--password", "--token"}
+    return cmd, mask_cmd(cmd, sensitive)
 
 
 def build_remove_cmd(form: dict, appfile_path: str) -> tuple:
@@ -156,6 +254,10 @@ def build_remove_cmd(form: dict, appfile_path: str) -> tuple:
     if form.get("cribl_url", "").strip():
         cmd += ["--cribl-url", form["cribl_url"].strip()]
     cmd += ["--workspace", form.get("workspace", "")]
+    if form.get("worker_group", "").strip():
+        cmd += ["--worker-group", form["worker_group"].strip()]
+    if form.get("region", "").strip():
+        cmd += ["--region", form["region"].strip()]
     if form.get("allow_prod"):
         cmd.append("--allow-prod")
     cmd += ["--order", form.get("order", "elk-first")]
@@ -192,6 +294,7 @@ def app_page():
     try:
         config = load_config()
     except Exception as exc:
+        log.error("Failed to load config.json: %s", exc)
         return f"Error loading config.json: {exc}", 500
     workspaces = {
         k: v for k, v in config.get("workspaces", {}).items()
@@ -226,6 +329,7 @@ def run_pusher():
     try:
         config = load_config()
     except Exception as exc:
+        log.error("Config load error: %s", exc)
         return jsonify({"errors": [f"Could not load config.json: {exc}"]}), 500
 
     ws_cfg = config.get("workspaces", {}).get(form.get("workspace", ""), {})
@@ -236,7 +340,12 @@ def run_pusher():
         )
 
     if errors:
+        log.warning("run-pusher validation failed: %s", errors)
         return jsonify({"errors": errors}), 400
+
+    log.info("run-pusher  workspace=%s  wgs=%s  mode=%s  dry_run=%s",
+             form.get("workspace"), worker_groups, mode,
+             bool(form.get("dry_run")))
 
     tmp_path = None
     try:
@@ -256,7 +365,7 @@ def run_pusher():
             form_dict["worker_group"] = wg
             cmd, masked = build_pusher_cmd(form_dict, tmp_path or "")
             commands.append({"wg": wg, "cmd": masked})
-            output, rc = run_subprocess(cmd)
+            output, rc = run_subprocess(cmd, masked)
             all_output += f"\n{'='*60}\n Worker group: {wg}\n{'='*60}\n{output}"
             if rc != 0:
                 last_rc = rc
@@ -295,6 +404,9 @@ def run_remove():
     if skip_elk and skip_cribl:
         errors.append("Nothing to do: both Skip ELK and Skip Cribl are checked.")
 
+    if not skip_cribl and not form.get("worker_group", "").strip():
+        errors.append("Worker Group is required when Cribl is not skipped.")
+
     if not skip_elk:
         if not form.get("elk_url_nonprod", "").strip():
             errors.append("ELK Nonprod URL is required.")
@@ -308,6 +420,7 @@ def run_remove():
     try:
         config = load_config()
     except Exception as exc:
+        log.error("Config load error: %s", exc)
         return jsonify({"errors": [f"Could not load config.json: {exc}"]}), 500
 
     ws_cfg = config.get("workspaces", {}).get(form.get("workspace", ""), {})
@@ -318,7 +431,12 @@ def run_remove():
         )
 
     if errors:
+        log.warning("run-remove validation failed: %s", errors)
         return jsonify({"errors": errors}), 400
+
+    log.info("run-remove  workspace=%s  wg=%s  mode=%s  skip_elk=%s  skip_cribl=%s  dry_run=%s",
+             form.get("workspace"), form.get("worker_group"), mode,
+             skip_elk, skip_cribl, bool(form.get("dry_run")))
 
     tmp_path = None
     try:
@@ -330,7 +448,7 @@ def run_remove():
                 tmp_path = tmp.name
 
         cmd, masked = build_remove_cmd(form.to_dict(), tmp_path or "")
-        output, rc  = run_subprocess(cmd)
+        output, rc  = run_subprocess(cmd, masked)
 
     finally:
         if tmp_path and os.path.exists(tmp_path):
@@ -347,4 +465,5 @@ def run_remove():
 
 
 if __name__ == "__main__":
+    log.info("Starting Flask app on 0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000, debug=False)
