@@ -15,7 +15,7 @@ from cribl_api import (
     unwrap_response,
 )
 from cribl_config import (
-    load_config, get_workspace_names, get_workspace,
+    load_config, get_workspace_names, get_workspace, get_worker_groups,
     build_workspace_urls, resolve_credentials,
     get_dest_template_path, get_route_template_path,
 )
