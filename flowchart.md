@@ -77,7 +77,8 @@ flowchart TD
             BLDROUTE --> DUPCHK{"name or filter\nalready exists\nor seen this batch?"}
             DUPCHK -- Yes --> RSKIP[Skip route\nlog SKIP]
             DUPCHK -- No  --> ADDRT[Append to new_routes\nAdd to tracking sets]
-            ADDRT --> DCHK{"dest_id already\nexists?"}
+            RSKIP  --> DCHK
+            ADDRT  --> DCHK{"dest_id already\nexists?"}
             DCHK -- Yes --> DSKIP[Skip dest\nlog SKIP]
             DCHK -- No  --> ADDDST[Append to new_dests]
         end

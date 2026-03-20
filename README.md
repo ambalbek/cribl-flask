@@ -21,10 +21,10 @@ Also includes **`rode_rm.py`** — a companion script that pushes **ELK roles + 
 11. [Docker](#docker)
 12. [Serving via Apache httpd (bastion)](#serving-via-apache-httpd-bastion)
 13. [All CLI Flags](#all-cli-flags)
-13. [Logging](#logging)
-14. [Safety Features](#safety-features)
-15. [Rolling Back a Change](#rolling-back-a-change)
-16. [Troubleshooting](#troubleshooting)
+14. [Logging](#logging)
+15. [Safety Features](#safety-features)
+16. [Rolling Back a Change](#rolling-back-a-change)
+17. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -55,7 +55,10 @@ Each workspace can point to a **different Cribl cluster** via an optional per-wo
 # CLI only
 pip install requests urllib3 jinja2
 
-# CLI + web UI
+# CLI + Flask web UI (recommended)
+pip install requests urllib3 jinja2 flask
+
+# CLI + Streamlit web UI (alternative)
 pip install requests urllib3 jinja2 streamlit
 ```
 
@@ -71,27 +74,30 @@ python --version
 ## File Structure
 
 ```
-cribl-rout/
+cribl-flask/
 │
-├── cribl-pusher.py              # CLI entry point — run this
+├── cribl-pusher.py              # CLI entry point — add routes + upsert destinations
 ├── rode_rm.py                   # Companion CLI — pushes ELK roles + Cribl routes together
-├── ui.py                        # Streamlit web UI (two tabs) — run with: streamlit run ui.py
+├── app.py                       # Flask web UI — run with: python app.py
+├── ui.py                        # Streamlit web UI (alternative) — run with: streamlit run ui.py
 ├── cribl_api.py                 # Cribl API + route logic
 ├── cribl_config.py              # Config loading and workspace resolution
 ├── cribl_utils.py               # Shared utilities (I/O, prompts, HTTP session)
 ├── cribl_logger.py              # Logging setup
+├── _validate.py                 # Offline validation script — run with: python _validate.py
 │
 ├── Dockerfile                   # Container image definition
-├── .dockerignore                # Files excluded from the Docker build context
 ├── requirements.txt             # Pip dependencies
 │
 ├── config.json                  # YOUR config (credentials + workspaces) — never commit
 ├── config.example.json          # Safe-to-commit template — copy this to config.json
 │
-├── route_template.json          # Route shape used for every new route  ← you must create
-├── blob_dest_template_dev.json  # Destination shape for the dev workspace  ← you must create
-├── blob_dest_template_qa.json   # Destination shape for the qa workspace   ← you must create
-├── blob_dest_template_prod.json # Destination shape for the prod workspace ← you must create
+├── route_template_azn.json      # Route shape for Azure North  ← you must create
+├── route_template_azs.json      # Route shape for Azure South  ← you must create
+├── blob_dest_template_azn_dev.json   # Dest shape — AZN dev    ← you must create
+├── blob_dest_template_azs_dev.json   # Dest shape — AZS dev    ← you must create
+├── blob_dest_template_azn_prod.json  # Dest shape — AZN prod   ← you must create
+├── blob_dest_template_azs_prod.json  # Dest shape — AZS prod   ← you must create
 │
 ├── appids.txt                   # (optional) Bulk app list — one "appid,appname" per line
 │
@@ -99,7 +105,7 @@ cribl-rout/
 │
 └── cribl_snapshots/             # Auto-created — rollback snapshots saved here
     ├── dev/
-    ├── qa/
+    ├── test/
     └── prod/
 ```
 
@@ -116,7 +122,13 @@ Make sure all `.py` files, template `.json` files, and `config.example.json` are
 ### Step 2 — Install dependencies
 
 ```bash
-pip install requests urllib3 jinja2 streamlit
+pip install requests urllib3 jinja2 flask
+```
+
+Or install everything from the requirements file:
+
+```bash
+pip install -r requirements.txt
 ```
 
 ### Step 3 — Create your config file
@@ -162,28 +174,33 @@ Open `config.json` in any text editor and fill in:
     "username": "admin",
     "password": "yourpassword"
   },
-  "route_template": "route_template.json",
+  "route_templates": {
+    "azn": "route_template_azn.json",
+    "azs": "route_template_azs.json"
+  },
+  "dest_prefixes": {
+    "azn": "hcsc-blob-storage-northcentralus",
+    "azs": "hcsc-blob-storage-southcentralus"
+  },
   "snapshot_dir": "cribl_snapshots",
   "min_existing_total_routes": 1,
   "diff_lines": 3,
   "workspaces": {
-    "azn-dev": {
-      "base_url": "https://cribl-azn.company.com:9000",
-      "worker_group": "dev",
-      "dest_template": "blob_dest_template_dev.json",
-      "description": "Azure North — Dev"
+    "dev": {
+      "worker_groups": ["wg-dev-01", "wg-dev-02"],
+      "dest_templates": {
+        "azn": "blob_dest_template_azn_dev.json",
+        "azs": "blob_dest_template_azs_dev.json"
+      },
+      "description": "Development"
     },
-    "azs-dev": {
-      "base_url": "https://cribl-azs.company.com:9000",
-      "worker_group": "dev",
-      "dest_template": "blob_dest_template_dev.json",
-      "description": "Azure South — Dev"
-    },
-    "azn-prod": {
-      "base_url": "https://cribl-azn.company.com:9000",
-      "worker_group": "prod",
-      "dest_template": "blob_dest_template_prod.json",
-      "description": "Azure North — Prod",
+    "prod": {
+      "worker_groups": ["wg-prod-01", "wg-prod-02"],
+      "dest_templates": {
+        "azn": "blob_dest_template_azn_prod.json",
+        "azs": "blob_dest_template_azs_prod.json"
+      },
+      "description": "Production",
       "require_allow": true
     }
   }
@@ -226,7 +243,7 @@ The script fills in `id`, `name`, `containerName`, and `description` automatical
 ### Step 6 — Do a dry run
 
 ```bash
-python cribl-pusher.py --workspace azn-dev --dry-run --appid TEST001 --appname "Test App"
+python cribl-pusher.py --workspace dev --worker-group wg-dev-01 --region azn --dry-run --appid TEST001 --appname "Test App"
 ```
 
 You should see the `=== TARGET ===` banner and a diff preview with no errors. **Nothing is written on a dry run.**
@@ -246,25 +263,29 @@ You should see the `=== TARGET ===` banner and a diff preview with no errors. **
 | `credentials.token` | string | `""` | Bearer token — if set, skips username/password login |
 | `credentials.username` | string | `""` | Login username |
 | `credentials.password` | string | `""` | Login password |
-| `route_template` | string | `route_template.json` | Default route template path |
+| `route_templates` | object | — | Map of region → route template path: `{"azn": "route_template_azn.json", "azs": "..."}` |
+| `dest_prefixes` | object | — | Map of region → destination ID prefix: `{"azn": "hcsc-blob-storage-northcentralus", ...}` |
 | `snapshot_dir` | string | `cribl_snapshots` | Directory where rollback snapshots are saved |
 | `min_existing_total_routes` | int | `1` | Refuse to PATCH if fewer than this many routes are loaded |
 | `diff_lines` | int | `3` | Lines of context shown in the diff preview |
 
 ### Workspace fields
 
-Each key under `workspaces` is a name you choose (e.g. `"azn-dev"`, `"azs-prod"`).
+Each key under `workspaces` is a name you choose (e.g. `"dev"`, `"prod"`).
 
 | Field | Required | Description |
 |---|---|---|
-| `worker_group` | yes | Cribl worker group name — forms the API path `/api/v1/m/{worker_group}` |
-| `dest_template` | yes | Path to the destination template JSON for this workspace |
+| `worker_groups` | yes | List of Cribl worker group names available for selection (e.g. `["wg-dev-01", "wg-dev-02"]`) |
+| `dest_templates` | yes* | Object mapping region → dest template path: `{"azn": "blob_dest_template_azn_dev.json", "azs": "..."}` |
+| `dest_template` | yes* | Alternative: single dest template path — skips region lookup (use when region doesn't matter) |
 | `base_url` | no | Overrides the global `base_url` — use this to point a workspace at a different cluster |
-| `routes_table` | no | Route table name in `GET/PATCH /routes/{routes_table}`. Defaults to `worker_group` |
+| `routes_table` | no | Route table name in `GET/PATCH /routes/{routes_table}`. Defaults to `"default"` |
 | `description` | no | Human-readable label shown in the run banner and UI dropdown |
 | `require_allow` | no | If `true`, user must type `ALLOW` before any writes (recommended for prod) |
 | `skip_ssl` | no | Overrides the global `skip_ssl` for this workspace only |
-| `route_template` | no | Overrides the global `route_template` for this workspace only |
+| `route_template` | no | Per-workspace route template override — skips region lookup in `route_templates` map |
+
+*One of `dest_templates` or `dest_template` is required.
 
 ### Credential priority (highest to lowest)
 
@@ -278,13 +299,13 @@ Each key under `workspaces` is a name you choose (e.g. `"azn-dev"`, `"azs-prod"`
 
 ## Template Files
 
-### route_template.json
+### route_template_azn.json / route_template_azs.json
 
-Defines the shape of every new route. The script fills in `id`, `filter`, `output`, and `name` for each app automatically. All other fields come from this template.
+One file per region, referenced via `route_templates` in `config.json`. The script fills in `id`, `filter`, `output`, and `name` for each app automatically. All other fields come from this template.
 
-### blob_dest_template_*.json
+### blob_dest_template_{region}_{workspace}.json
 
-Defines the shape of the blob storage destination for each workspace. The script fills in `id`, `name`, `containerName`, and `description` automatically.
+One file per region × workspace (e.g. `blob_dest_template_azn_dev.json`), referenced via `dest_templates` in each workspace config. The script fills in `id`, `name`, `containerName`, and `description` automatically.
 
 ---
 
@@ -319,6 +340,16 @@ Rules:
 
 ### Option A — Web UI (recommended)
 
+**Flask UI** (default, no extra dependencies beyond `flask`):
+
+```bash
+python app.py
+```
+
+Opens `http://localhost:5000`.
+
+**Streamlit UI** (alternative, requires `pip install streamlit`):
+
 ```bash
 streamlit run ui.py
 ```
@@ -331,7 +362,9 @@ Opens `http://localhost:8501`. See the [Web UI](#web-ui) section for details.
 
 ```bash
 python cribl-pusher.py \
-  --workspace azn-dev \
+  --workspace dev \
+  --worker-group wg-dev-01 \
+  --region azn \
   --appid APP001 \
   --appname "My Application" \
   --yes
@@ -343,7 +376,9 @@ python cribl-pusher.py \
 
 ```bash
 python cribl-pusher.py \
-  --workspace azn-dev \
+  --workspace dev \
+  --worker-group wg-dev-01 \
+  --region azn \
   --from-file \
   --appfile appids.txt \
   --yes
@@ -354,7 +389,7 @@ python cribl-pusher.py \
 ### Dry run (preview only — no writes)
 
 ```bash
-python cribl-pusher.py --workspace azn-dev --dry-run --from-file --appfile appids.txt
+python cribl-pusher.py --workspace dev --worker-group wg-dev-01 --region azn --dry-run --from-file --appfile appids.txt
 ```
 
 ---
@@ -364,7 +399,9 @@ python cribl-pusher.py --workspace azn-dev --dry-run --from-file --appfile appid
 ```bash
 python cribl-pusher.py \
   --cribl-url https://cribl-azs.company.com:9000 \
-  --workspace azs-dev \
+  --workspace dev \
+  --worker-group wg-dev-01 \
+  --region azs \
   --appid APP001 --appname "My App" \
   --yes
 ```
@@ -377,7 +414,9 @@ Workspaces with `"require_allow": true` require an extra flag:
 
 ```bash
 python cribl-pusher.py \
-  --workspace azn-prod \
+  --workspace prod \
+  --worker-group wg-prod-01 \
+  --region azn \
   --allow-prod \
   --from-file --appfile appids.txt \
   --yes
@@ -389,7 +428,9 @@ python cribl-pusher.py \
 
 ```bash
 python cribl-pusher.py \
-  --workspace azn-dev \
+  --workspace dev \
+  --worker-group wg-dev-01 \
+  --region azn \
   --group-id my-group-id \
   --create-missing-group \
   --group-name "My New Group" \
@@ -459,10 +500,16 @@ python rode_rm.py \
 |---|---|---|
 | `--app_name` | *(required)* | Application name |
 | `--apmid` | *(required)* | App ID (lower-case, e.g. `app00001234`) |
-| `--elk-url` | *(required unless --skip-elk)* | ELK/OpenSearch base URL |
-| `--elk-user` | `""` | ELK username (basic auth) |
-| `--elk-password` | `""` | ELK password |
-| `--elk-token` | `""` | ELK API key — overrides user/password |
+| `--from-file` | false | Read app list from file instead of `--app_name`/`--apmid` |
+| `--appfile` | `appids.txt` | Path to app list file (one `appid, appname` per line) |
+| `--elk-url` | *(required unless --skip-elk)* | ELK/OpenSearch nonprod base URL |
+| `--elk-url-prod` | *(required unless --skip-elk)* | ELK/OpenSearch prod base URL |
+| `--elk-user` | `""` | ELK nonprod username (basic auth) |
+| `--elk-password` | `""` | ELK nonprod password |
+| `--elk-token` | `""` | ELK nonprod API key — overrides user/password |
+| `--elk-user-prod` | `""` | ELK prod username (basic auth) |
+| `--elk-password-prod` | `""` | ELK prod password |
+| `--elk-token-prod` | `""` | ELK prod API key — overrides user/password |
 | `--cribl-url` | `""` | Cribl base URL override |
 | `--workspace` | *(required unless --skip-cribl)* | Cribl workspace name |
 | `--allow-prod` | false | Skip the ALLOW prompt for protected workspaces |
@@ -478,11 +525,29 @@ python rode_rm.py \
 
 ## Web UI
 
+Two web UI options are available:
+
+### Flask UI (app.py) — recommended
+
+```bash
+python app.py
+```
+
+Opens `http://localhost:5000`. The Flask UI exposes two API endpoints:
+
+- **`POST /cribl/api/run-pusher`** — runs `cribl-pusher.py` for one or more worker groups
+- **`POST /cribl/api/run-remove`** — runs `rode_rm.py` (ELK + Cribl)
+- **`GET /cribl/app`** — main app page (served from `templates/app.html`)
+- **`GET /`** — landing page (served from `templates/index.html`)
+- **`GET /health`** — health check endpoint
+
+### Streamlit UI (ui.py) — alternative
+
 ```bash
 streamlit run ui.py
 ```
 
-Opens `http://localhost:8501`. The UI has two tabs:
+Opens `http://localhost:8501`. The Streamlit UI has two tabs:
 
 ### Tab 1 — Cribl Pusher
 
@@ -627,6 +692,8 @@ docker load -i cribl-pusher.tar
 | `--config` | `config.json` | Path to the config file |
 | `--cribl-url` | `""` | Cribl base URL override (overrides config + workspace `base_url`) |
 | `--workspace` | *(prompts)* | Workspace name (must match a key in config `workspaces`) |
+| `--worker-group` | *(prompts)* | Worker group to target (must be in workspace's `worker_groups` list) |
+| `--region` | *(prompts)* | Region: `azn` or `azs` (selects route + dest templates) |
 | `--allow-prod` | false | Skip the ALLOW prompt for workspaces with `require_allow: true` |
 | `--token` | `""` | Bearer token override |
 | `--username` | `""` | Username override |

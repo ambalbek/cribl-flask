@@ -51,23 +51,32 @@ section("2. URL CONSTRUCTION PER WORKSPACE")
 config = {
     "base_url": "https://cribl.company.com:9000",
     "workspaces": {
-        "dev":    {"worker_group": "dev",     "dest_template": "blob_dest_template_dev.json"},
-        "qa":     {"worker_group": "qa",      "dest_template": "blob_dest_template_qa.json"},
-        "prod":   {"worker_group": "prod",    "dest_template": "blob_dest_template_prod.json", "require_allow": True},
-        "custom": {"worker_group": "wg-main", "routes_table": "my-table", "dest_template": "blob_dest_template_dev.json"},
+        "dev":    {"worker_groups": ["dev-01", "dev-02"], "dest_templates": {"azn": "blob_dest_template_azn_dev.json"}},
+        "qa":     {"worker_groups": ["qa-01"],            "dest_templates": {"azn": "blob_dest_template_azn_qa.json"}},
+        "prod":   {"worker_groups": ["prod-01"],          "dest_templates": {"azn": "blob_dest_template_azn_prod.json"}, "require_allow": True},
+        "custom": {"worker_groups": ["wg-main"],          "routes_table": "my-table", "dest_templates": {"azn": "blob_dest_template_azn_dev.json"}},
     },
 }
 
+# For URL tests, use the first worker_group in each workspace's list
+_wg_map = {
+    "dev":    "dev-01",
+    "qa":     "qa-01",
+    "prod":   "prod-01",
+    "custom": "wg-main",
+}
+
 expected_routes = {
-    "dev":    "https://cribl.company.com:9000/api/v1/m/dev/routes/dev",
-    "qa":     "https://cribl.company.com:9000/api/v1/m/qa/routes/qa",
-    "prod":   "https://cribl.company.com:9000/api/v1/m/prod/routes/prod",
+    "dev":    "https://cribl.company.com:9000/api/v1/m/dev-01/routes/default",
+    "qa":     "https://cribl.company.com:9000/api/v1/m/qa-01/routes/default",
+    "prod":   "https://cribl.company.com:9000/api/v1/m/prod-01/routes/default",
     "custom": "https://cribl.company.com:9000/api/v1/m/wg-main/routes/my-table",
 }
 
 for ws_name, ws_cfg in config["workspaces"].items():
-    root_url, api_base = cfg.build_workspace_urls(config, ws_cfg)
-    routes_table = ws_cfg.get("routes_table", ws_cfg["worker_group"])
+    wg = _wg_map[ws_name]
+    root_url, api_base = cfg.build_workspace_urls(config, ws_cfg, wg)
+    routes_table = ws_cfg.get("routes_table", "default")
     routes_url   = f"{api_base}/routes/{routes_table}"
     outputs_url  = f"{api_base}/system/outputs"
     exp = expected_routes[ws_name]
@@ -76,7 +85,7 @@ for ws_name, ws_cfg in config["workspaces"].items():
     else:
         fail(f"[{ws_name}] expected {exp}, got {routes_url}")
     # outputs URL sanity
-    if outputs_url == f"https://cribl.company.com:9000/api/v1/m/{ws_cfg['worker_group']}/system/outputs":
+    if outputs_url == f"https://cribl.company.com:9000/api/v1/m/{wg}/system/outputs":
         ok(f"[{ws_name}] outputs_url = {outputs_url}")
     else:
         fail(f"[{ws_name}] bad outputs_url: {outputs_url}")
@@ -85,13 +94,13 @@ for ws_name, ws_cfg in config["workspaces"].items():
 section("3. WORKSPACE HELPERS")
 
 names = cfg.get_workspace_names(config)
-if names == ["dev", "qa", "prod", "custom"]:
+if set(names) == {"dev", "qa", "prod", "custom"}:
     ok(f"get_workspace_names: {names}")
 else:
     fail(f"get_workspace_names returned: {names}")
 
 ws = cfg.get_workspace(config, "dev")
-if ws["worker_group"] == "dev":
+if ws["worker_groups"] == ["dev-01", "dev-02"]:
     ok("get_workspace('dev') correct")
 else:
     fail(f"get_workspace('dev') wrong: {ws}")
@@ -250,15 +259,26 @@ try:
     with open("config.json") as f:
         live = json.load(f)
     ok("config.json is valid JSON")
-    ws_names = list(live.get("workspaces", {}).keys())
+    ws_names = [k for k in live.get("workspaces", {}).keys() if not k.startswith("_")]
     ok(f"workspaces defined: {ws_names}")
     for name, wscfg in live["workspaces"].items():
-        if "_comment" in name:
+        if name.startswith("_"):
             continue
-        assert "worker_group" in wscfg, f"[{name}] missing worker_group"
-        assert "dest_template" in wscfg, f"[{name}] missing dest_template"
-        rt = wscfg.get("routes_table", wscfg["worker_group"])
-        _, base = cfg.build_workspace_urls(live, wscfg)
+        # Support both old (worker_group string) and new (worker_groups list) format
+        if "worker_groups" in wscfg:
+            wg_list = wscfg["worker_groups"]
+            assert isinstance(wg_list, list) and wg_list, f"[{name}] worker_groups must be a non-empty list"
+            wg = wg_list[0]
+        elif "worker_group" in wscfg:
+            wg = wscfg["worker_group"]
+        else:
+            fail(f"[{name}] missing worker_group or worker_groups")
+            continue
+        # Support both old (dest_template string) and new (dest_templates dict) format
+        has_dest = "dest_template" in wscfg or "dest_templates" in wscfg
+        assert has_dest, f"[{name}] missing dest_template or dest_templates"
+        rt = wscfg.get("routes_table", "default")
+        _, base = cfg.build_workspace_urls(live, wscfg, wg)
         url = f"{base}/routes/{rt}"
         ok(f"[{name}] routes_url = {url}")
 except Exception as e:
@@ -312,7 +332,7 @@ assert _simulate_dest_upsert(500) == "error"
 ok("dest POST 500 -> error (5xx still fatal)")
 
 # ── Logger module ─────────────────────────────────────────────────────────────
-section("13. LOGGER MODULE")
+section("14. LOGGER MODULE")
 
 cribl_logger = load_mod("cribl_logger", "cribl_logger.py")
 ok("cribl_logger imported")
@@ -355,7 +375,7 @@ _os.unlink(tmp_log)
 ok("log_file handler writes to file correctly")
 
 # die() uses logger when handlers present, falls back to stderr otherwise
-section("14. die() LOGGER INTEGRATION")
+section("15. die() LOGGER INTEGRATION")
 
 # With handlers: should use logger.error (not print to stderr)
 import io
@@ -376,7 +396,7 @@ finally:
     test_log5.handlers.extend(old_handlers)
 
 # ── Stale log strings ─────────────────────────────────────────────────────────
-section("15. STALE LOG STRINGS IN cribl-pusher.py")
+section("16. STALE LOG STRINGS IN cribl-pusher.py")
 
 with open("cribl-pusher.py", encoding="utf-8") as f:
     src = f.read()
@@ -399,7 +419,7 @@ for s in stale:
         ok(f'clean: "{s}"')
 
 # ── Null/non-dict/filter-less route filtering (regression) ───────────────────
-section("16. ROUTE FILTERING (null, non-dict, and missing-filter exclusion)")
+section("17. ROUTE FILTERING (null, non-dict, and missing-filter exclusion)")
 
 # Simulate the raw routes list Cribl may return:
 #   - null slots            -> not isinstance(r, dict) -> dropped
@@ -476,7 +496,7 @@ assert total_after_sim >= total_before_sim - len(existing_routes), \
 ok("total_before adjustment keeps safety check consistent with PATCH payload")
 
 # ── unwrap_response (PATCH payload fix) ──────────────────────────────────────
-section("17. unwrap_response — PATCH payload structure")
+section("18. unwrap_response — PATCH payload structure")
 
 # Cribl GET /routes returns {"count":N,"items":[{inner}]}.
 # PATCH expects just the inner object.  Sending the wrapper causes Cribl's JS
