@@ -596,31 +596,34 @@ docker run -d --name cribl-pusher \
 
 Then open `http://localhost:5000`.
 
-### Run — production (behind Apache on bastion)
+### Run — production (on bastion, behind Apache)
 
-Bind to loopback only so the port is not exposed to the public internet.
+Bind to loopback only — Apache on the same host proxies to it, nothing else can reach the port.
 
 ```bash
 docker run -d --name cribl-pusher --restart unless-stopped \
-  -p 10.0.0.2:5000:5000 \
+  -p 127.0.0.1:5000:5000 \
   -v /path/to/config.json:/app/config.json:ro \
   -v /path/to/cribl_snapshots:/app/cribl_snapshots \
   cribl-pusher
 ```
 
-> **`10.0.0.2`** is the WireGuard interface IP on the remote host. Binding to it means
-> the container is reachable from the bastion over VPN but not from the public internet.
+Or use Docker Compose (recommended — includes healthcheck and auto-restart):
+
+```bash
+docker compose up -d
+```
 
 ---
 
 ## Serving via Apache httpd (bastion)
 
-The app runs in Docker on a **remote host**. Apache on the **bastion** reverse-proxies to it over a WireGuard VPN or SSH tunnel.
+Docker and Apache both run **on the bastion host**. Docker binds to loopback (`127.0.0.1:5000`) so the port is never exposed to the network — only Apache can reach it.
 
 ```
 Browser → https://bastion/cribl/app
-          Apache ProxyPass → http://10.0.0.2:5000/cribl/app  (WireGuard)
-          Docker container → Flask :5000
+          Apache ProxyPass → http://127.0.0.1:5000/cribl/app
+          Docker container → Flask :5000  (loopback only)
 ```
 
 ### Static landing page
