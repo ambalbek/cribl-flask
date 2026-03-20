@@ -12,7 +12,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+import requests as http_client
 import streamlit as st
+import urllib3
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 SCRIPT_DIR  = Path(__file__).parent.resolve()
@@ -114,6 +116,33 @@ def validate(mode, appid, appname, uploaded_file,
             except ValueError: errors.append(f"{label} must be an integer.")
 
     return errors
+
+
+def portal_update_status(request_id: str, status: str, config: dict) -> dict:
+    portal   = config.get("portal", {})
+    url      = portal.get("url", "").strip().rstrip("/")
+    secret   = portal.get("admin_secret", "").strip()
+    skip_ssl = portal.get("skip_ssl", False)
+    timeout  = portal.get("timeout", 10)
+
+    if not url or not secret:
+        return {"skipped": True, "reason": "portal.url or portal.admin_secret not configured"}
+
+    if skip_ssl:
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    try:
+        resp = http_client.post(
+            f"{url}/admin/update-status",
+            json={"request_id": request_id, "status": status},
+            headers={"X-Admin-Secret": secret, "Content-Type": "application/json"},
+            verify=not skip_ssl,
+            timeout=timeout,
+        )
+        if resp.status_code == 200:
+            return {"ok": True, "response": resp.json()}
+        return {"ok": False, "status_code": resp.status_code, "body": resp.text[:500]}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
 
 
 def run_subprocess(cmd: list[str]) -> tuple[str, int]:
@@ -307,6 +336,11 @@ with tab1:
                     st.code("\n".join(valid[:5]) or "(empty)")
                 uploaded_file.seek(0)
 
+        portal_request_id = st.text_input(
+            "Portal Request ID (optional)",
+            placeholder="REQ-20260320-ABCD1234 — auto-updates portal status on success",
+        )
+
         st.divider()
 
         # ── Options ────────────────────────────────────────────────────────────
@@ -438,6 +472,17 @@ with tab1:
             with right:
                 if last_rc == 0:
                     st.success(f"All {len(selected_wgs)} worker group(s) completed successfully.")
+
+                    if portal_request_id.strip() and not dry_run:
+                        result = portal_update_status(portal_request_id.strip(), "done", config)
+                        if result.get("skipped"):
+                            st.info(f"Portal update skipped: {result.get('reason')}")
+                        elif result.get("ok"):
+                            st.success(f"Portal request {portal_request_id.strip()} marked as **done**.")
+                        else:
+                            st.warning(f"Portal update failed: {result.get('error') or result.get('body')}")
+                    elif portal_request_id.strip() and dry_run:
+                        st.info("Dry-run mode — portal status not updated.")
                 else:
                     st.error(f"Finished with errors (exit code {last_rc}).")
                 out_placeholder.code(all_output.strip(), language="")

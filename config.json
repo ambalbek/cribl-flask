@@ -65,6 +65,14 @@
     }
   },
 
+  "portal": {
+    "_comment": "cribl-portal integration — after a successful pusher run, update the request status automatically.",
+    "url": "",
+    "admin_secret": "",
+    "skip_ssl": false,
+    "timeout": 10
+  },
+
   "_workspace_options_reference": {
     "_comment": "Optional fields you can add to any workspace entry:",
     "routes_table": "route table name used in GET/PATCH /routes/{routes_table} — defaults to \"default\" if omitted",

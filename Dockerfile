@@ -12,10 +12,9 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && find /usr/local/lib -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null; true
 
 COPY *.py ./
-COPY templates/ ./templates/
 
-# config.json is NOT baked in — mount at runtime.
-# See README for volume mount instructions.
+# config.json is NOT baked in — mount at runtime:
+#   -v ./config.json:/app/config.json:ro
 
 EXPOSE 5000
 

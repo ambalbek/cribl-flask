@@ -30,6 +30,25 @@ Also includes **`rode_rm.py`** — a companion script that pushes **ELK roles + 
 
 ## What It Does
 
+### Portal Integration
+
+After a successful pusher run, cribl-flask **automatically marks the onboarding request as `done`** in the cribl-portal by calling its admin API. The operator simply pastes the `REQ-YYYYMMDD-XXXXXXXX` ID into the Portal Request ID field before running.
+
+Configure the portal connection in `config.json`:
+
+```json
+"portal": {
+  "url":          "http://cribl-portal-host:9229",
+  "admin_secret": "<same value as portal's admin_secret>",
+  "skip_ssl":     false,
+  "timeout":      10
+}
+```
+
+If `portal.url` or `portal.admin_secret` is blank the update is silently skipped — the pusher still runs normally.
+
+---
+
 For each application you provide (by ID and name), the script:
 
 1. Fetches the current route table from Cribl (`GET /api/v1/m/{worker_group}/routes/{routes_table}`)
@@ -77,14 +96,11 @@ flowchart TD
 - **pip** packages:
 
 ```bash
-# CLI only
-pip install requests urllib3 jinja2
-
 # CLI + Flask web UI (recommended)
-pip install requests urllib3 jinja2 flask
+pip install -r requirements.txt
 
-# CLI + Streamlit web UI (alternative)
-pip install requests urllib3 jinja2 streamlit
+# CLI + Streamlit web UI (alternative, not included in requirements.txt)
+pip install streamlit
 ```
 
 Verify your Python version:
@@ -104,17 +120,19 @@ cribl-flask/
 ├── cribl-pusher.py              # CLI entry point — add routes + upsert destinations
 ├── rode_rm.py                   # Companion CLI — pushes ELK roles + Cribl routes together
 ├── app.py                       # Flask web UI — run with: python app.py
-├── ui.py                        # Streamlit web UI (alternative) — run with: streamlit run ui.py
+├── ui.py                        # Streamlit web UI (alternative) — run with: streamlit run ui.py (NOT in Docker image)
 ├── cribl_api.py                 # Cribl API + route logic
 ├── cribl_config.py              # Config loading and workspace resolution
 ├── cribl_utils.py               # Shared utilities (I/O, prompts, HTTP session)
 ├── cribl_logger.py              # Logging setup
 ├── _validate.py                 # Offline validation script — run with: python _validate.py
 │
-├── Dockerfile                   # Container image definition
-├── requirements.txt             # Pip dependencies
+├── Dockerfile                   # Container image — python:3.13-slim, config.json never baked in
+├── docker-compose.yml           # Recommended way to run — mounts config + snapshots
+├── .dockerignore                # Excludes config.json, snapshots, ui.py, logs from build context
+├── requirements.txt             # Pinned pip dependencies (flask, requests, urllib3)
 │
-├── config.json                  # YOUR config (credentials + workspaces) — never commit
+├── config.json                  # YOUR config (credentials + workspaces + portal) — never commit
 ├── config.example.json          # Safe-to-commit template — copy this to config.json
 │
 ├── route_template_azn.json      # Route shape for Azure North  ← you must create
@@ -293,6 +311,10 @@ You should see the `=== TARGET ===` banner and a diff preview with no errors. **
 | `snapshot_dir` | string | `cribl_snapshots` | Directory where rollback snapshots are saved |
 | `min_existing_total_routes` | int | `1` | Refuse to PATCH if fewer than this many routes are loaded |
 | `diff_lines` | int | `3` | Lines of context shown in the diff preview |
+| `portal.url` | string | `""` | cribl-portal base URL — e.g. `http://cribl-portal-host:9229` |
+| `portal.admin_secret` | string | `""` | Must match `admin_secret` in cribl-portal's `config.json` |
+| `portal.skip_ssl` | bool | `false` | Disable SSL verification for the portal call |
+| `portal.timeout` | int | `10` | Request timeout in seconds for the portal status update |
 
 ### Workspace fields
 
@@ -579,6 +601,7 @@ Opens `http://localhost:8501`. The Streamlit UI has two tabs:
 - **Cribl URL** — select from the `cribl_urls` list in config (or type a custom URL if the list is empty)
 - **Workspace** — select from workspaces defined in config
 - **App Input** — single app (App ID + App Name) or bulk file upload
+- **Portal Request ID** *(optional)* — paste the `REQ-YYYYMMDD-XXXXXXXX` from the onboarding portal; if set and the run succeeds (non-dry-run), the portal status is automatically updated to `done`
 - **Options** — Dry Run (default: on), Skip SSL, Log Level
 - **Credentials override** — Bearer Token or Username/Password (leave blank to use config.json)
 - **Advanced Options** — Route Group ID, safety overrides, snapshot directory, log file
@@ -601,7 +624,7 @@ Sensitive fields (passwords, tokens) are masked in the command preview shown bef
 
 ## Docker
 
-The image is built on `python:3.13-slim` (linux/amd64). `config.json` and all template JSONs are **never baked in** — they are volume-mounted at runtime.
+The image is built on `python:3.13-slim` (linux/amd64). `config.json` and all template JSONs are **never baked in** — they are volume-mounted at runtime. `ui.py` (Streamlit) is excluded from the image via `.dockerignore` — the Docker image runs only the Flask UI.
 
 ### Build
 
@@ -859,6 +882,17 @@ The script likely exited with an error before producing output. Check:
 - `config.json` has the correct `base_url` and credentials
 - The workspace's `dest_template` file exists
 - Enable **Debug** log level in the UI for detailed HTTP output
+
+---
+
+### Portal status not updating after a successful run
+
+Check in order:
+1. `portal.url` and `portal.admin_secret` are set in `config.json`
+2. The `admin_secret` matches the value in cribl-portal's `config.json`
+3. The Portal Request ID field was filled in before clicking Run
+4. **Dry Run was unchecked** — portal updates are skipped on dry runs
+5. The portal is reachable from the Docker container — use `host.docker.internal` if it runs on the same host
 
 ---
 

@@ -22,6 +22,8 @@ import traceback
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
+import requests as http_client
+import urllib3
 from flask import Flask, g, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException
 
@@ -148,6 +150,41 @@ def run_subprocess(cmd: list, masked: str = "") -> tuple:
         log.warning("  subprocess failed — first 500 chars: %s",
                     (result.stdout or "")[:500])
     return result.stdout or "", result.returncode
+
+
+def portal_update_status(request_id: str, status: str, config: dict) -> dict:
+    """Call cribl-portal's admin/update-status endpoint. Returns a result dict."""
+    portal = config.get("portal", {})
+    url    = portal.get("url", "").strip().rstrip("/")
+    secret = portal.get("admin_secret", "").strip()
+    skip_ssl = portal.get("skip_ssl", False)
+    timeout  = portal.get("timeout", 10)
+
+    if not url or not secret:
+        log.warning("portal_update_status — portal.url or portal.admin_secret not configured; skipping")
+        return {"skipped": True, "reason": "portal not configured"}
+
+    endpoint = f"{url}/admin/update-status"
+    if skip_ssl:
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    try:
+        resp = http_client.post(
+            endpoint,
+            json={"request_id": request_id, "status": status},
+            headers={"X-Admin-Secret": secret, "Content-Type": "application/json"},
+            verify=not skip_ssl,
+            timeout=timeout,
+        )
+        if resp.status_code == 200:
+            log.info("portal_update_status — request_id=%s  status=%s  OK", request_id, status)
+            return {"ok": True, "response": resp.json()}
+        else:
+            log.warning("portal_update_status — %d %s", resp.status_code, resp.text[:200])
+            return {"ok": False, "status_code": resp.status_code, "body": resp.text[:500]}
+    except Exception as exc:
+        log.error("portal_update_status — failed: %s", exc)
+        return {"ok": False, "error": str(exc)}
 
 
 def mask_cmd(cmd: list, sensitive: set) -> str:
@@ -315,9 +352,10 @@ def health():
 
 @app.route("/cribl/api/run-pusher", methods=["POST"])
 def run_pusher():
-    form = request.form
-    file = request.files.get("appfile")
-    mode = form.get("mode", "single")
+    form       = request.form
+    file       = request.files.get("appfile")
+    mode       = form.get("mode", "single")
+    request_id = (form.get("request_id") or "").strip()
 
     errors = []
     if mode == "single":
@@ -382,10 +420,16 @@ def run_pusher():
             except OSError:
                 pass
 
+    portal_result = None
+    dry_run = bool(form.get("dry_run"))
+    if last_rc == 0 and not dry_run and request_id:
+        portal_result = portal_update_status(request_id, "done", config)
+
     return jsonify({
-        "output":     all_output.strip(),
-        "returncode": last_rc,
-        "commands":   commands,
+        "output":        all_output.strip(),
+        "returncode":    last_rc,
+        "commands":      commands,
+        "portal_update": portal_result,
     })
 
 
