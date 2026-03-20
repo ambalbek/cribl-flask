@@ -1,25 +1,10 @@
-# ── Credentials & local config ─────────────────────────────────────────────
+# Credentials / config with secrets
 config.json
 
-# ── Secrets / credentials that should never be committed ───────────────────
-*.key
-*.pem
-*.env
-.env*
-
-# ── Template JSONs (contain environment-specific blob storage shapes) ───────
-blob_dest_template*.json
-route_template*.json
-
-# ── Runtime output ──────────────────────────────────────────────────────────
+# Snapshots (rollback files)
 cribl_snapshots/
-ops_rm_r_templates_output/
-*.log
 
-# ── Bulk app input files (may contain internal app IDs) ────────────────────
-appids.txt
-
-# ── Python ──────────────────────────────────────────────────────────────────
+# Python
 __pycache__/
 *.py[cod]
 *.pyo
@@ -30,28 +15,27 @@ dist/
 build/
 .eggs/
 pip-wheel-metadata/
-*.whl
 
-# ── Virtual environments ─────────────────────────────────────────────────────
+# Virtual environments
 .venv/
 venv/
 env/
 ENV/
 
-# ── Docker artifacts ────────────────────────────────────────────────────────
-cribl-pusher.tar
-cribl-pusher.part.*
-cribl-pusher.tar.sha256
-
-# ── Claude Code ─────────────────────────────────────────────────────────────
-.claude/
-
-# ── OS / editor ─────────────────────────────────────────────────────────────
-.DS_Store
-Thumbs.db
-desktop.ini
-.idea/
+# IDEs
 .vscode/
+.idea/
 *.swp
 *.swo
 *~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Log files (--log-file output)
+*.log
+
+#.claude
+.claude
