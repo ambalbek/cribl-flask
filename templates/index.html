@@ -81,16 +81,6 @@
     }
     .launch-btn:hover { opacity: .85; }
 
-    /* ── Background logos ── */
-    .bg-logos {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      overflow: hidden;
-      z-index: 0;
-    }
-    main, .hero, header, .tab-bar, footer { position: relative; z-index: 1; }
-
     /* ── Hero ── */
     .hero {
       text-align: center;
@@ -287,14 +277,6 @@
 </head>
 <body>
 
-<!-- ══════════ BACKGROUND LOGOS ══════════ -->
-<div class="bg-logos">
-  <img src="https://www.bcbsil.com/content/experience-fragments/bcbs-v2/public_sites/bcbsil/en/header/mega-nav/_jcr_content/root/header_mega_nav/logo.coreimg.svg/1773371212254/bcbsil-logo.svg"
-       style="position:absolute;width:520px;top:-40px;left:-80px;opacity:0.06;filter:grayscale(1);" alt="">
-  <img src="https://www.bcbsil.com/content/experience-fragments/bcbs-v2/public_sites/bcbsil/en/header/mega-nav/_jcr_content/root/header_mega_nav/logo.coreimg.svg/1773371212254/bcbsil-logo.svg"
-       style="position:absolute;width:340px;bottom:-20px;right:-40px;opacity:0.04;filter:grayscale(1);" alt="">
-</div>
-
 <!-- ══════════ HEADER ══════════ -->
 <header>
   <div class="logo">
@@ -481,11 +463,11 @@
           </li>
           <li>
             <span class="field-name">Skip ELK</span>
-            <span class="field-desc"><span class="tag tag-flag">flag</span> Only push ELK roles, skip Cribl</span>
+            <span class="field-desc"><span class="tag tag-flag">flag</span> Skip ELK side — only push Cribl routes</span>
           </li>
           <li>
             <span class="field-name">Skip Cribl</span>
-            <span class="field-desc"><span class="tag tag-flag">flag</span> Only push Cribl routes, skip ELK</span>
+            <span class="field-desc"><span class="tag tag-flag">flag</span> Skip Cribl side — only push ELK roles</span>
           </li>
           <li>
             <span class="field-name">Dry Run</span>

@@ -43,6 +43,31 @@ For each application you provide (by ID and name), the script:
 
 Each workspace can point to a **different Cribl cluster** via an optional per-workspace `base_url`, or you can override the URL at runtime with `--cribl-url`.
 
+### Execution Flow
+
+```mermaid
+flowchart TD
+    A([Start]) --> B[Load config + resolve workspace]
+    B --> C{App input mode}
+    C -- Single app --> D[Read --appid / --appname]
+    C -- Bulk file --> E[Parse appids.txt]
+    D & E --> F[Authenticate — get bearer token]
+    F --> G[GET current route table]
+    G --> H{Routes below minimum?}
+    H -- Yes --> Z1([Abort — safety guard])
+    H -- No --> I[GET existing destinations — build skip-list]
+    I --> J[Build new routes from template]
+    J --> K[Show unified diff]
+    K --> L{Dry run?}
+    L -- Yes --> Z2([Exit — no writes])
+    L -- No --> M{Confirm / require_allow?}
+    M -- Denied --> Z3([Abort])
+    M -- Confirmed --> N[Save rollback snapshot]
+    N --> O[POST missing destinations]
+    O --> P[PATCH route table]
+    P --> Q([Done ✓])
+```
+
 ---
 
 ## Prerequisites
@@ -257,8 +282,8 @@ You should see the `=== TARGET ===` banner and a diff preview with no errors. **
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `base_url` | string | — | Default Cribl root URL (overridden per workspace or via `--cribl-url`) |
-| `cribl_urls` | list | `[]` | Cribl URLs shown as a dropdown in the UI Cribl Pusher tab |
-| `elk_urls` | list | `[]` | ELK URLs shown as a dropdown in the UI ELK Roles + Cribl tab |
+| `cribl_urls` | list | `[]` | Cribl URLs shown as a dropdown in the UI — Cribl Pusher tab |
+| `elk_urls` | list | `[]` | ELK URLs shown as a dropdown in the UI — ELK Roles + Cribl tab |
 | `skip_ssl` | bool | `false` | Disable SSL cert verification globally |
 | `credentials.token` | string | `""` | Bearer token — if set, skips username/password login |
 | `credentials.username` | string | `""` | Login username |
@@ -533,7 +558,7 @@ Two web UI options are available:
 python app.py
 ```
 
-Opens `http://localhost:5000`. The Flask UI exposes two API endpoints:
+Opens `http://localhost:5000`. The Flask UI exposes the following endpoints:
 
 - **`POST /cribl/api/run-pusher`** — runs `cribl-pusher.py` for one or more worker groups
 - **`POST /cribl/api/run-remove`** — runs `rode_rm.py` (ELK + Cribl)
