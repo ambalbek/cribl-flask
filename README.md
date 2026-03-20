@@ -211,7 +211,7 @@ Open `config.json` in any text editor and fill in:
 
 The following files must exist in the same folder. Grab the shapes from your live Cribl instance:
 
-**`route_template.json`** — fetch a route from Cribl and strip out the app-specific fields:
+**`route_template_azn.json` / `route_template_azs.json`** — fetch a route from Cribl and strip out the app-specific fields:
 
 ```bash
 curl -k -H "Authorization: Bearer YOUR_TOKEN" \
@@ -231,7 +231,7 @@ Minimum working example:
 }
 ```
 
-**`blob_dest_template_*.json`** — fetch an existing output and strip the app-specific fields:
+**`blob_dest_template_{region}_{workspace}.json`** — fetch an existing output and strip the app-specific fields:
 
 ```bash
 curl -k -H "Authorization: Bearer YOUR_TOKEN" \
@@ -470,7 +470,7 @@ python rode_rm.py \
   --elk-url  "https://elk.company.com:9200" \
   --elk-user elastic \
   --elk-password secret \
-  --workspace azn-dev \
+  --workspace dev \
   --dry-run
 ```
 
@@ -491,7 +491,7 @@ python rode_rm.py \
   --app_name "My App" --apmid "app00001234" \
   --elk-url "https://elk.company.com:9200" --elk-user elastic \
   --cribl-url "https://cribl-azs.company.com:9000" \
-  --workspace azs-dev
+  --workspace dev
 ```
 
 ### CLI flags
@@ -589,24 +589,20 @@ docker build -t cribl-pusher .
 ```bash
 # Linux / macOS / Git Bash
 docker run -d --name cribl-pusher \
-  -p 8501:8501 \
+  -p 5000:5000 \
   -v $(pwd)/config.json:/app/config.json:ro \
-  -v $(pwd)/route_template.json:/app/route_template.json:ro \
-  -v $(pwd)/blob_dest_template_dev.json:/app/blob_dest_template_dev.json:ro \
-  -v $(pwd)/blob_dest_template_prod.json:/app/blob_dest_template_prod.json:ro \
   cribl-pusher
 ```
 
-Then open `http://localhost:8501`.
+Then open `http://localhost:5000`.
 
 ### Run — production (behind Apache on bastion)
 
 Bind to loopback only so the port is not exposed to the public internet.
-The app is served at `/cribl/app` via Apache reverse proxy — `--server.baseUrlPath` must match that path.
 
 ```bash
 docker run -d --name cribl-pusher --restart unless-stopped \
-  -p 10.0.0.2:8501:8501 \
+  -p 10.0.0.2:5000:5000 \
   -v /path/to/config.json:/app/config.json:ro \
   -v /path/to/cribl_snapshots:/app/cribl_snapshots \
   cribl-pusher
@@ -614,9 +610,6 @@ docker run -d --name cribl-pusher --restart unless-stopped \
 
 > **`10.0.0.2`** is the WireGuard interface IP on the remote host. Binding to it means
 > the container is reachable from the bastion over VPN but not from the public internet.
->
-> The `--server.baseUrlPath=/cribl/app` flag is already set in the `Dockerfile` `CMD`.
-> If you change the Apache path, update the `Dockerfile` `CMD` to match.
 
 ---
 
@@ -626,8 +619,8 @@ The app runs in Docker on a **remote host**. Apache on the **bastion** reverse-p
 
 ```
 Browser → https://bastion/cribl/app
-          Apache ProxyPass → http://10.0.0.2:8501/cribl/app  (WireGuard)
-          Docker container → Streamlit :8501
+          Apache ProxyPass → http://10.0.0.2:5000/cribl/app  (WireGuard)
+          Docker container → Flask :5000
 ```
 
 ### Static landing page
@@ -653,7 +646,7 @@ sudo httpd -t && sudo systemctl reload httpd
 | URL | What |
 |---|---|
 | `https://bastion/cribl/` | Static landing page |
-| `https://bastion/cribl/app` | Live Streamlit app |
+| `https://bastion/cribl/app` | Live Flask app |
 
 ### Required Apache modules
 
@@ -731,7 +724,7 @@ All output uses Python's `logging` module via the shared `"cribl"` logger.
 
 ```bash
 # Write logs to a file (appended across runs)
-python cribl-pusher.py --workspace azn-dev --log-file audit.log --from-file --yes
+python cribl-pusher.py --workspace dev --worker-group wg-dev-01 --region azn --log-file audit.log --from-file --yes
 ```
 
 ---
@@ -755,7 +748,7 @@ python cribl-pusher.py --workspace azn-dev --log-file audit.log --from-file --ye
 Find the snapshot file printed in the run output:
 
 ```
-[SNAPSHOT] cribl_snapshots/azn-prod/routes_snapshot_20240315T143022Z.json
+[SNAPSHOT] cribl_snapshots/prod/routes_snapshot_20240315T143022Z.json
 ```
 
 Restore it using the `routes_url` from the `=== TARGET ===` banner:
@@ -765,7 +758,7 @@ curl -k -X PATCH \
   "https://YOUR_CRIBL:9000/api/v1/m/{worker_group}/routes/{routes_table}" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
-  -d @cribl_snapshots/azn-prod/routes_snapshot_20240315T143022Z.json
+  -d @cribl_snapshots/prod/routes_snapshot_20240315T143022Z.json
 ```
 
 ---
@@ -781,7 +774,7 @@ cp config.example.json config.json     # Mac/Linux
 
 ---
 
-### `FileNotFoundError: route_template.json`
+### `FileNotFoundError: route_template_azn.json` (or similar)
 
 The template files are not created automatically. See [Step 5 — Create the template files](#step-5--create-the-template-files).
 
