@@ -16,7 +16,7 @@ from cribl_api import (
 )
 from cribl_config import (
     load_config, get_workspace_names, get_workspace,
-    build_workspace_urls, resolve_credentials,
+    build_workspace_urls, resolve_credentials, get_dest_template_path,
 )
 
 """
@@ -294,9 +294,8 @@ def push_cribl(apps, workspace_name, args, log):
         api_base = f"{root_url}/api/v1/m/{worker_group}"
 
     route_tmpl_path = workspace_cfg.get("route_template") or config.get("route_template", "route_template.json")
-    dest_tmpl_path  = workspace_cfg.get("dest_template", "")
-    if not dest_tmpl_path:
-        die(f"[ERR] No dest_template defined for workspace '{workspace_name}'")
+    region         = getattr(args, "region", "").strip()
+    dest_tmpl_path = get_dest_template_path(config, workspace_cfg, region)
 
     route_template    = read_json(route_tmpl_path)
     dest_template     = read_json(dest_tmpl_path)
@@ -318,7 +317,7 @@ def push_cribl(apps, workspace_name, args, log):
             "Accept":        "application/json",
         }
 
-    routes_table = workspace_cfg.get("routes_table", workspace_cfg["worker_group"])
+    routes_table = workspace_cfg.get("routes_table", worker_group)
     routes_url   = f"{api_base}/routes/{routes_table}"
     outputs_url  = f"{api_base}/system/outputs"
 
