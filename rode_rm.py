@@ -16,7 +16,8 @@ from cribl_api import (
 )
 from cribl_config import (
     load_config, get_workspace_names, get_workspace,
-    build_workspace_urls, resolve_credentials, get_dest_template_path,
+    build_workspace_urls, resolve_credentials,
+    get_dest_template_path, get_route_template_path,
 )
 
 """
@@ -293,9 +294,9 @@ def push_cribl(apps, workspace_name, args, log):
         root_url = args.cribl_url.rstrip("/")
         api_base = f"{root_url}/api/v1/m/{worker_group}"
 
-    route_tmpl_path = workspace_cfg.get("route_template") or config.get("route_template", "route_template.json")
     region         = getattr(args, "region", "").strip()
-    dest_tmpl_path = get_dest_template_path(config, workspace_cfg, region)
+    route_tmpl_path = get_route_template_path(config, workspace_cfg, region)
+    dest_tmpl_path  = get_dest_template_path(config, workspace_cfg, region)
 
     route_template    = read_json(route_tmpl_path)
     dest_template     = read_json(dest_tmpl_path)
