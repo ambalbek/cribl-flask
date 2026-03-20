@@ -81,6 +81,22 @@
     }
     .launch-btn:hover { opacity: .85; }
 
+    /* ── Background logos ── */
+    .bg-logos {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 0;
+    }
+    .bg-logos svg {
+      position: absolute;
+      opacity: 0.03;
+    }
+    .bg-logo-cribl  { width: 520px; height: 520px; top: -80px;  left: -100px; }
+    .bg-logo-elastic{ width: 420px; height: 420px; bottom: -60px; right: -80px; }
+    main, .hero, header, .tab-bar, footer { position: relative; z-index: 1; }
+
     /* ── Hero ── */
     .hero {
       text-align: center;
@@ -276,6 +292,31 @@
   </style>
 </head>
 <body>
+
+<!-- ══════════ BACKGROUND LOGOS ══════════ -->
+<div class="bg-logos">
+  <!-- Cribl logo mark (stylised C) -->
+  <svg class="bg-logo-cribl" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M80 50C80 66.569 66.569 80 50 80C33.431 80 20 66.569 20 50C20 33.431 33.431 20 50 20C58.284 20 65.784 23.358 71.213 28.787" stroke="#ff4b4b" stroke-width="12" stroke-linecap="round" fill="none"/>
+  </svg>
+  <!-- Elastic logo mark (stylised e) -->
+  <svg class="bg-logo-elastic" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="50" cy="50" rx="32" ry="22" stroke="#0ea5e9" stroke-width="10" fill="none"/>
+    <line x1="18" y1="50" x2="82" y2="50" stroke="#0ea5e9" stroke-width="10" stroke-linecap="round"/>
+  </svg>
+  <!-- Azure logo mark -->
+  <svg class="bg-logo-azure"   viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:360px;height:360px;top:40%;left:35%;opacity:0.025;">
+    <polygon points="36,10 64,10 90,85 10,85" stroke="#0078d4" stroke-width="8" fill="none" stroke-linejoin="round"/>
+    <line x1="22" y1="65" x2="78" y2="65" stroke="#0078d4" stroke-width="8" stroke-linecap="round"/>
+  </svg>
+  <!-- Python logo mark -->
+  <svg class="bg-logo-python"  viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:300px;height:300px;bottom:20%;left:55%;opacity:0.025;">
+    <path d="M50 10 C30 10 22 20 22 35 L22 45 L50 45 L50 55 L22 55 L22 65 C22 80 30 90 50 90 C70 90 78 80 78 65 L78 55 L50 55" stroke="#f7c948" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M50 55 L50 45 L78 45 L78 35 C78 20 70 10 50 10" stroke="#4584b6" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <circle cx="36" cy="32" r="4" fill="#f7c948"/>
+    <circle cx="64" cy="68" r="4" fill="#4584b6"/>
+  </svg>
+</div>
 
 <!-- ══════════ HEADER ══════════ -->
 <header>
