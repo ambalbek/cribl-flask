@@ -62,15 +62,21 @@ def get_cribl_urls(config: dict) -> list[str]:
 def get_route_template_path(config: dict, workspace_cfg: dict, region: str) -> str:
     """
     Returns the route template path to use.
-    Priority: workspace-level override > region lookup in route_templates map.
+    Priority: workspace-level single override > workspace route_templates[region] map > top-level route_templates[region].
     """
     override = workspace_cfg.get("route_template", "")
     if override:
         return override
+    # workspace-level per-region map (e.g. {"azn": "route_template_azn_dev.json"})
+    templates = workspace_cfg.get("route_templates", {})
+    path = templates.get(region, "")
+    if path:
+        return path
+    # fall back to top-level map
     templates = config.get("route_templates", {})
     path = templates.get(region, "")
     if not path:
-        die(f"[ERR] No route_template defined for region '{region}' in config route_templates")
+        die(f"[ERR] No route_template defined for region '{region}' in workspace or config route_templates")
     return path
 
 

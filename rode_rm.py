@@ -318,7 +318,7 @@ def push_cribl(apps, workspace_name, args, log):
             "Accept":        "application/json",
         }
 
-    routes_table = workspace_cfg.get("routes_table", worker_group)
+    routes_table = workspace_cfg.get("routes_table", "default")
     routes_url   = f"{api_base}/routes/{routes_table}"
     outputs_url  = f"{api_base}/system/outputs"
 
